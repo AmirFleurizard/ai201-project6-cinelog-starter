@@ -1,6 +1,36 @@
 # PR Response Doc — CineLog Watchlist Feature
 
 ## AI Usage
+I used Claude as an AI tool throughout this project for codebase
+orientation, pattern matching, and conflict resolution guidance.
+
+**Instance 1 - Codebase orientation:**
+I gave Claude the contents of models.py, collection_service.py, and
+test_collection.py and asked it to summarize the naming conventions,
+deduplication pattern, and test structure. It correctly identified the
+verb_to_noun naming convention and the pattern used in
+add_to_collection() for deduplication. I verified both against the
+actual code before applying them to the watchlist service.
+
+**Instance 2 - Rebase conflict resolution:**
+When the rebase produced a conflict between my branch's models.py and
+main's refactored version, I asked Claude to help me understand what
+had changed and what needed updating. It identified that WatchlistEntry
+had been dropped during the rebase and that film_id needed to change
+from Integer to String(36) to match the UUID refactor. I verified this
+by reading the diff output and confirmed the fix by running the test
+suite.
+
+**Instance 3 - Design decision stress-testing (Comments 4 and 5):**
+After drafting my responses for default visibility and sort order, I
+asked Claude what counterarguments a careful reviewer might raise. For
+Comment 4, it raised the concern about surprising users who didn't
+realize their list was public, I incorporated this into my tradeoff
+acknowledgment. For Comment 5, it confirmed that consistency with
+get_collection() sort order was a strong argument, which I included
+in my reasoning. My final arguments are my own reasoning grounded in
+CineLog's context — Claude helped me identify gaps, not write the
+responses.
 
 ## Comment 1 — Rename
 **What I did:**
@@ -114,3 +144,60 @@ Ran `pytest tests/ -v` and all 7 tests pass. Ran `git log --oneline`
 to confirm no merge commits in the branch history.
 
 ## PR Description
+
+### Watchlist Feature — Add films to a personal watchlist
+
+This PR adds a watchlist feature to CineLog so users can save films
+they want to watch later, separate from their collection of films
+they've already seen.
+
+**What's included:**
+- `WatchlistEntry` model with `user_id`, `film_id`, `date_added`,
+  and `public` fields
+- `add_to_watchlist(user_id, film_id)` service function with film
+  existence check and deduplication
+- `get_watchlist(user_id)` service function returning entries sorted
+  by date added (newest first)
+- `GET /watchlist/<user_id>` endpoint to retrieve a user's watchlist
+- `POST /watchlist/<user_id>/add` endpoint to add a film
+- Tests for nonexistent film, duplicate entry, and basic add
+
+**Design decisions:**
+
+*Default visibility (`public=True`):*
+Watchlist entries default to public because CineLog is a community
+platform where social discovery is the core value. Defaulting to
+private would require users to opt in to social features, reducing
+the community experience for new users. Users who want privacy can
+opt out. The visibility setting should be surfaced clearly in the UI.
+
+*Sort order (date-added descending):*
+Watchlist entries are sorted by date added, newest first — matching
+the sort order of `get_collection()`. A watchlist functions as a
+queue of films to watch next, and the most recently added film is
+usually the most top-of-mind. This also makes the API consistent
+across both list features.
+
+**How to manually test:**
+
+1. Start the app: `python app.py`
+
+2. Add a film to a user's watchlist:
+```bash
+curl -s -X POST http://127.0.0.1:5000/watchlist//add \
+  -H "Content-Type: application/json" \
+  -d '{"film_id": ""}' | python -m json.tool
+```
+
+3. View the user's watchlist:
+```bash
+curl -s http://127.0.0.1:5000/watchlist/ | python -m json.tool
+```
+
+4. Verify deduplication — add the same film twice and confirm the
+   second request returns an error, not a duplicate entry.
+
+5. Verify nonexistent film — use a fake UUID as film_id and confirm
+   FilmNotFoundError is returned.
+
+6. Run the full test suite: `pytest tests/ -v` — all 7 tests should pass.
