@@ -92,7 +92,25 @@ collection sort order.
 
 ## Comment 6 — Rebase
 **What conflicted:**
+Two conflicts arose during the rebase. First, `.gitignore` had an
+add/add conflict because main already had a `.gitignore` commit that
+included `.pytest_cache/` while my branch added one without it.
+Second, the rebase brought in main's refactored `models.py` which
+changed `Film.id` from Integer to UUID, but this replaced my branch's
+`models.py` which contained the `WatchlistEntry` model, dropping it
+entirely.
+
 **How I resolved it:**
+For the `.gitignore` conflict, I kept both sets of entries merged into
+one clean file including `.pytest_cache/` from main, then ran
+`git rebase --continue`. For the missing `WatchlistEntry`, I re-added
+the class to `models.py` with `film_id` updated from
+`db.Column(db.Integer, ...)` to `db.Column(db.String(36), ...)` to
+match main's UUID-based `Film.id`. Also updated the `watchlist_service.py`
+docstring to reflect `film_id` is now a UUID string, not an integer.
+
 **How I verified no conflict remains:**
+Ran `pytest tests/ -v` and all 7 tests pass. Ran `git log --oneline`
+to confirm no merge commits in the branch history.
 
 ## PR Description
